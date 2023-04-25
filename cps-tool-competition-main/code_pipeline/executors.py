@@ -221,7 +221,8 @@ class MockExecutor(AbstractTestExecutor):
         # Ensure we do not execute anything longer than the time budget
         super()._execute(the_test)
 
-        test_outcome = random.choice(["FAIL", "FAIL", "FAIL", "PASS", "PASS", "PASS", "PASS", "PASS", "ERROR"])
+        # test_outcome = random.choice(["FAIL", "FAIL", "FAIL", "PASS", "PASS", "PASS", "PASS", "PASS", "ERROR"])
+        test_outcome = "PASS"
         description = "Mocked test results"
 
         sim_state = SimulationDataRecord(
@@ -247,7 +248,7 @@ class MockExecutor(AbstractTestExecutor):
         execution_data = [sim_state]
 
         log.info("Pretend test is executing for 5 seconds.")
-        time.sleep(5)
+        
 
         return test_outcome, description, execution_data
 

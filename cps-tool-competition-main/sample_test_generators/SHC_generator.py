@@ -1,10 +1,13 @@
-from random import randint
-import random
+from random import randint, gauss, random
+
+import deap.algorithms
+
 
 import numpy as np
 from code_pipeline.tests_generation import RoadTestFactory
 from time import  sleep
 
+import os
 import time
 import logging as log
 import pandas as pd
@@ -19,6 +22,48 @@ class HillClimbingGenerator():
     def __init__(self, executor=None, map_size=None):
         self.executor = executor
         self.map_size = map_size
+
+
+
+    def mutate_tuple(self, individual, mu, sigma, indpb):
+        """(modified from deap.tools.mutGaussian)
+        This function applies a gaussian mutation of mean *mu* and standard
+        deviation *sigma* on the input individual. This mutation expects a
+        :term:`sequence` individual composed of real valued 2-dimensional tuples.
+        The *indpb* argument is the probability of each attribute to be mutated.
+
+        :param individual: Individual to be mutated
+        :param mu: Mean or :term:`python:sequence` of means for the
+                   gaussian addition mutation
+        :param sigma: Standard deviation or :term:`python:sequence` of
+                      standard deviations for the gaussian addition mutation
+        :param indpb: Independent probability for each attribute to be mutated
+        :returns: A tuple of one individual.
+        """
+
+        for i in range(0, len(individual)):
+            if random() < indpb:
+                # convert tuple into list to update values
+                point = list(individual[i])
+
+                # update the first value (x-pos)
+                point[0] += int(gauss(mu, sigma))
+                if point[0] < 10:
+                    point[0] = 10
+                if point[0] > self.map_size - 10:    # capping at 10 - mapsize-10 because of the way roads are interpolated (want the road to stay inside map boundaries)
+                    point[0] = self.map_size - 10
+
+                # update the second value (y-pos)
+                point[1] += int(gauss(mu, sigma))
+                if point[1] < 10:
+                    point[1] = 10
+                if point[1] > self.map_size - 10:
+                    point[1] = self.map_size - 10
+
+                # update the attribute (tuple) in the individual
+                individual[i] = tuple(point)
+
+        return individual,
 
 
     def check_redundancy(self, all_roads, time_elapsed_list):
@@ -113,6 +158,11 @@ class HillClimbingGenerator():
 
     def start(self):
 
+
+        from deap import base
+        from deap import creator
+        from deap import tools
+
         all_roads = {
             # 0.1245: [(50, 50), (75, 75), (150, 150)], #should be removed
             # 0.3857: [(52, 52), (76, 73), (154, 153)], #should stay
@@ -138,6 +188,16 @@ class HillClimbingGenerator():
         start_time = time.time()
 
         iteration = 0
+
+        every_road = []
+        every_test_outcome = []
+        every_description = []
+        every_fitness = []
+        every_candidate = []
+        every_time = []
+
+
+        
         
         while test_count < 60:
             try:
@@ -152,44 +212,18 @@ class HillClimbingGenerator():
                 # Pick up random points from the map. They will be interpolated anyway to generate the road
                 road_points = []
                 
-        
+                
                 
 
                 if candidate_solution == []:
                     for i in range(0, 3):
-                        road_points.append((randint(0, self.map_size), randint(0, self.map_size)))
+                        road_points.append((randint(10, self.map_size - 10), randint(10, self.map_size - 10)))
 
                 else:
-                    candidate_road_points = candidate_solution[0][1] #gives [(x,y),(x,y),(x,y)]
-                    for i in range(0, 3):
-                        random_number = randint(5, 30)
-                        x, y = candidate_road_points[i] # unpack the tuple into separate x and y variables
-                        is_addition = random.choice([False, True])
-                        if is_addition:
-                            if random_number + x <= 200:
-                                x += random_number
-                            else:
-                                x -= random_number
-
-                            if random_number + y <= 200:
-                                y += random_number
-                            else:
-                                y -= random_number
-
-                        else:
-                            if x - random_number >= 0:
-                                x -= random_number
-                            else :
-                                x += random_number
-
-                            if y - random_number >= 0:
-                                y -= random_number
-                            else:
-                                y += random_number
-
-                        candidate_road_points[i] = (x, y) # create a new tuple with the modified values
-                    road_points = candidate_road_points
-                    
+                    mutant = candidate_solution[0][1]
+                    ind2, = self.mutate_tuple(mutant, mu=0.0, sigma=self.map_size/10, indpb=1)
+                    road_points = ind2
+                
 
                 
 
@@ -209,7 +243,10 @@ class HillClimbingGenerator():
                 
 
           
+                current_time = time.time() - start_time
 
+                if fitness > 0:
+                    test_outcome = "PASS"
 
                 if test_outcome == "PASS":
                     
@@ -225,20 +262,34 @@ class HillClimbingGenerator():
 
                 else:
                     invalid_tests += 1
+                    
 
 
                 test_count += 1
 
+                
+                if candidate_solution != []:
+                    candidate_fitness = round(candidate_solution[0][0], 5)
+                    candidate_road = candidate_solution[0][1]
 
-                candidate_fitness = round(candidate_solution[0][0], 5)
-                candidate_road = candidate_solution[0][1]
 
+                
                 # Print the result from the test and continue
                 log.info(f"Road_points: {road_points}")
+                every_road.append(list(road_points))
                 log.info(f"Test_outcome: {test_outcome}")
+                every_test_outcome.append(test_outcome)
                 log.info(f"Description: {description}")
+                every_description.append(description)
                 log.info(f"Fitness: {fitness:.5f}")  
-                log.info(f"Current candidate solution: {candidate_road}, fitness: {candidate_fitness}") 
+                every_fitness.append(fitness)
+                every_time.append(current_time)
+                if candidate_solution != []:
+                    log.info(f"Current candidate solution: {candidate_road}, fitness: {candidate_fitness}") 
+                    every_candidate.append((candidate_fitness,candidate_road))
+                else:
+                    log.info(f"Current candidate solution: {candidate_solution}") 
+                    every_candidate.append(("None", "None"))
                 log.info("-------------------------------------------------")   
                 
             except KeyboardInterrupt:
@@ -250,6 +301,23 @@ class HillClimbingGenerator():
         log.info("TEST HAS BEEN COMPLETED")
 
 
+
+        experiment = {
+            'fitness': every_fitness,
+            'road points' : every_road,
+            'test outcome' : every_test_outcome,
+            'description' : every_description,
+            'current candidate' : every_candidate,
+            'time elapsed' : every_time
+        }
+
+        df_main = pd.DataFrame(experiment)
+
+        df_main = df_main.round({'fitness' : 5, 'time elapsed' : 2})
+
+        df_main.insert(0, 'generation number', range(1, len(df_main)+1))
+
+        
             # Create a dictionary with the desired data
         data = {
             'fitness': list(removed_redundant.keys()),
@@ -275,29 +343,30 @@ class HillClimbingGenerator():
 
         df.insert(0, 'Unique road', range(1, len(df)+1))
 
+
+
+        
+        base_filename = 'results/HC_{}.csv'
+        i = 1
+
+        while i <= 20:
+            filename = base_filename.format(i)
+            if not os.path.isfile(filename):
+                break
+            i += 1
         # Save the DataFrame to a CSV file
-        df.to_csv('results/SHC.csv', index=False, mode = 'w')
 
-        with open('results/SHC.csv', 'a') as f:
-            f.write('\n')
-            f.write('\n')
-            f.write('\n')
-            f.write('\n')
+        df_main.to_csv(filename, index=False, mode = 'w')
 
+        df.to_csv(filename, index=False, mode = 'a')    
 
-        df_lane_violation.to_csv('results/SHC.csv', index=False, mode = 'a')
+        df_lane_violation.to_csv(filename, index=False, mode = 'a')
 
-
-        with open('results/SHC.csv', 'a') as f:
-            f.write('\n')
-            f.write('\n')
-            f.write('\n')
-            f.write('\n')
-
-        candidate_fitness = round(candidate_solution[0][0], 5)
-        candidate_road = candidate_solution[0][1]
+        if self.candidate_solution != []:
+            candidate_fitness = round(candidate_solution[0][0], 5)
+            candidate_road = candidate_solution[0][1]
             
-        with open('results/SHC.csv', 'a') as f:
+        with open(filename, 'a') as f:
             f.write('\n')
             f.write(f'Total number of roads generated: {test_count}')
             f.write('\n')

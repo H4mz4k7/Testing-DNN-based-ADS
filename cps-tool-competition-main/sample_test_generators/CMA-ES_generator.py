@@ -7,13 +7,11 @@ import logging as log
 from random import randint, gauss, random
 import matplotlib.pyplot as plt
 import pandas as pd
-from deap import base, creator, tools
-
 
 from code_pipeline.tests_generation import RoadTestFactory
 
 
-class GATestGenerator():
+class CMATestGenerator():
     """
         Generates a set of tests using GA (based on the Deap library; https://github.com/deap/deap).
 
@@ -37,7 +35,7 @@ class GATestGenerator():
 
     def init_attribute(self):
         
-        attribute = (randint(10, self.map_size-10), randint(10, self.map_size-10))
+        attribute = randint(10, self.map_size-10)
         return attribute
     
 
@@ -128,161 +126,17 @@ class GATestGenerator():
         return removed_redundant, removed_redundant_time
 
 
-    def eaSimple(self,population, toolbox, cxpb, mutpb, ngen, stats=None,
-             halloffame=None, verbose=__debug__):
-        """(modified from deap.algorithms.eaSimple)
-        This algorithm reproduce the simplest evolutionary algorithm as
-        presented in chapter 7 of [Back2000]_.
-
-        :param population: A list of individuals.
-        :param toolbox: A :class:`~deap.base.Toolbox` that contains the evolution
-                        operators.
-        :param cxpb: The probability of mating two individuals.
-        :param mutpb: The probability of mutating an individual.
-        :param ngen: The number of generation.
-        :param stats: A :class:`~deap.tools.Statistics` object that is updated
-                    inplace, optional.
-        :param halloffame: A :class:`~deap.tools.HallOfFame` object that will
-                        contain the best individuals, optional.
-        :param verbose: Whether or not to log the statistics.
-        :returns: The final population
-        :returns: A class:`~deap.tools.Logbook` with the statistics of the
-                evolution
-
-        The algorithm takes in a population and evolves it in place using the
-        :meth:`varAnd` method. It returns the optimized population and a
-        :class:`~deap.tools.Logbook` with the statistics of the evolution. The
-        logbook will contain the generation number, the number of evaluations for
-        each generation and the statistics if a :class:`~deap.tools.Statistics` is
-        given as argument. The *cxpb* and *mutpb* arguments are passed to the
-        :func:`varAnd` function. The pseudocode goes as follow ::
-
-            evaluate(population)
-            for g in range(ngen):
-                population = select(population, len(population))
-                offspring = varAnd(population, toolbox, cxpb, mutpb)
-                evaluate(offspring)
-                population = offspring
-
-        As stated in the pseudocode above, the algorithm goes as follow. First, it
-        evaluates the individuals with an invalid fitness. Second, it enters the
-        generational loop where the selection procedure is applied to entirely
-        replace the parental population. The 1:1 replacement ratio of this
-        algorithm **requires** the selection procedure to be stochastic and to
-        select multiple times the same individual, for example,
-        :func:`~deap.tools.selTournament` and :func:`~deap.tools.selRoulette`.
-        Third, it applies the :func:`varAnd` function to produce the next
-        generation population. Fourth, it evaluates the new individuals and
-        compute the statistics on this population. Finally, when *ngen*
-        generations are done, the algorithm returns a tuple with the final
-        population and a :class:`~deap.tools.Logbook` of the evolution.
-
-        .. note::
-
-            Using a non-stochastic selection method will result in no selection as
-            the operator selects *n* individuals from a pool of *n*.
-
-        This function expects the :meth:`toolbox.mate`, :meth:`toolbox.mutate`,
-        :meth:`toolbox.select` and :meth:`toolbox.evaluate` aliases to be
-        registered in the toolbox.
-
-        .. [Back2000] Back, Fogel and Michalewicz, "Evolutionary Computation 1 :
-        Basic Algorithms and Operators", 2000.
-        """
-        logbook = tools.Logbook()
-        logbook.header = ['gen', 'nevals'] + (stats.fields if stats else [])
-
-        # Evaluate the individuals with an invalid fitness
-        invalid_ind = [ind for ind in population if not ind.fitness.valid]
-        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
-        for ind, fit in zip(invalid_ind, fitnesses):
-            ind.fitness.values = fit
-
-        if halloffame is not None:
-            halloffame.update(population)
-
-        record = stats.compile(population) if stats else {}
-        logbook.record(gen=0, nevals=len(invalid_ind), **record)
-        if verbose:
-            print(logbook.stream)
-
-        # Begin the generational process
-        for gen in range(1, ngen + 1):
-            # Select the next generation individuals
-            offspring = toolbox.select(population, len(population))
-
-            # Vary the pool of individuals
-            offspring = deap.algorithms.varAnd(offspring, toolbox, cxpb, mutpb)
-
-            # Evaluate the individuals with an invalid fitness
-            invalid_ind = [ind for ind in offspring]
-            fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
-            for ind, fit in zip(invalid_ind, fitnesses):
-                ind.fitness.values = fit
-
-            # Update the hall of fame with the generated individuals
-            if halloffame is not None:
-                halloffame.update(offspring)
-
-            # Replace the current population by the offspring
-            population[:] = offspring
-
-            # Append the current generation statistics to the logbook
-            record = stats.compile(population) if stats else {}
-            logbook.record(gen=gen, nevals=len(invalid_ind), **record)
-            if verbose:
-                print(logbook.stream)
-
-        return population, logbook
-
-    def mutate_tuple(self, individual, mu, sigma, indpb):
-        """(modified from deap.tools.mutGaussian)
-        This function applies a gaussian mutation of mean *mu* and standard
-        deviation *sigma* on the input individual. This mutation expects a
-        :term:`sequence` individual composed of real valued 2-dimensional tuples.
-        The *indpb* argument is the probability of each attribute to be mutated.
-
-        :param individual: Individual to be mutated
-        :param mu: Mean or :term:`python:sequence` of means for the
-                   gaussian addition mutation
-        :param sigma: Standard deviation or :term:`python:sequence` of
-                      standard deviations for the gaussian addition mutation
-        :param indpb: Independent probability for each attribute to be mutated
-        :returns: A tuple of one individual.
-        """
-
-        for i in range(0, len(individual)):
-            if random() < indpb:
-                # convert tuple into list to update values
-                point = list(individual[i])
-
-                # update the first value (x-pos)
-                point[0] += int(gauss(mu, sigma))
-                if point[0] < 10:
-                    point[0] = 10
-                if point[0] > self.map_size - 10:
-                    point[0] = self.map_size - 10
-
-                # update the second value (y-pos)
-                point[1] += int(gauss(mu, sigma))
-                if point[1] < 10:
-                    point[1] = 10
-                if point[1] > self.map_size - 10:
-                    point[1] = self.map_size - 10
-
-                # update the attribute (tuple) in the individual
-                individual[i] = tuple(point)
-
-        return individual,
 
 
-
+    
 
     def evaluate(self, individual, start_time):
         
 
+        road_points = list([(individual[i], individual[i+1]) for i in range(0, len(individual), 2)])
         # Creating the RoadTest from the points
-        road_points = list(individual)
+        
+       
         the_test = RoadTestFactory.create_road_test(road_points)
 
         
@@ -355,22 +209,29 @@ class GATestGenerator():
 
         return fitness,  # important to return a tuple since deap considers multiple objectives
 
-
-
-
     
+    def num_random_for_centroid(self, num_road_points):
+        num_coord_ind = num_road_points * 2
+        coord_list = []
+        for i in range(num_coord_ind):
+            coord_list.append(randint(10,self.map_size - 10))
 
-    
-
+        return coord_list
+            
+        
+   
 
     def start(self):
         log.info("Starting test generation")
 
+        from deap import base
+        from deap import creator
+        from deap import tools
+        from deap import cma
         
 
         start_time = time.time()
         
-        # Define the problem type
         creator.create("FitnessMax", base.Fitness, weights=(1.0,))
         creator.create("Individual", list, fitness=creator.FitnessMax)
 
@@ -379,41 +240,38 @@ class GATestGenerator():
         # an attribute is a point in the road
         toolbox.register("attribute", self.init_attribute)
         # an individual is road_points (list)
-        toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attribute, n=num_road_points)
-        # a population is a list of individuals
-        toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+        toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attribute, n=num_road_points * 2)
 
-        # Register the crossover and mutation operators' hyperparameters
-        toolbox.register("mate", tools.cxTwoPoint)
-        toolbox.register("mutate", self.mutate_tuple, mu=0, sigma=self.map_size/10, indpb=1)
-        toolbox.register("select", tools.selTournament, tournsize=3)
+        
+        
+        
+        # Define the CMA-ES parameters
+        pop_per_gen = 10      
+        strategy = cma.Strategy(centroid= self.num_random_for_centroid(num_road_points), sigma=self.map_size/10, lambda_ = pop_per_gen)
+        toolbox.register("generate", strategy.generate, creator.Individual)
+        toolbox.register("update", strategy.update)
 
         # Register the fitness evaluation function
         toolbox.register("evaluate", self.evaluate, start_time = start_time)
 
-        # Run a simple ready-made GA
-        pop_size = 10  # population size
-        num_generations = 5  # number of generations
+        # Run CMA-ES
+        num_generations = 6   # number of generations
         hof = tools.HallOfFame(1)  # save the best one individual during the whole search
-        pop, deap_log = self.eaSimple(population=toolbox.population(n=pop_size),
-                                                 toolbox=toolbox,
-                                                 halloffame=hof,
-                                                 cxpb=0.85,
-                                                 mutpb=0.5,
-                                                 ngen=num_generations,
-                                                 verbose=True)
-
+        pop, logbook = deap.algorithms.eaGenerateUpdate(toolbox, ngen=num_generations, halloffame=hof, verbose=True)
+            
         # Print the best individual from the hall of fame
         best_individual = tools.selBest(hof, 1)[0]
 
-        log.info("TEST HAS BEEN COMPLETED")
+
+        print("TEST HAS BEEN COMPLETED")
 
         if self.candidate_solution != []:
             candidate_fitness = round(self.candidate_solution[0][0], 5)
             candidate_road = self.candidate_solution[0][1]
         
+            print(f"Best individual: {candidate_road}, fitness: {candidate_fitness}")
 
-            log.info(f"Best individual: {candidate_road}, fitness: {candidate_fitness}")
+        
         removed_redundant, removed_redundant_time = self.check_redundancy(self.valid_roads, self.time_elapsed_list)
         
         
@@ -458,7 +316,7 @@ class GATestGenerator():
         df.insert(0, 'Unique road', range(1, len(df)+1))
 
 
-        base_filename = 'results/GA_{}.csv'
+        base_filename = 'results/CMA-ES_{}.csv'
         i = 1
 
         while i <= 20:
@@ -475,9 +333,10 @@ class GATestGenerator():
         df_lane_violation.to_csv(filename, index=False, mode = 'a')
 
 
-        total_roads = pop_size * num_generations + pop_size
+        total_roads = pop_per_gen * num_generations
         number_redundant = len(self.valid_roads.keys()) - len(removed_redundant.keys())
 
+        
         
 
         with open(filename, 'a') as f:
