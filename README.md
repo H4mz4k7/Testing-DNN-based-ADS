@@ -33,3 +33,6 @@ done`
 
 If you would like to run the algorithms one after the other 20 times each, you can run the following command in a linux terminal:
 `bash run_tests.sh`
+
+
+Note: if there are any errors when running GA or CMA-ES, please replace the file from .venv/lib/deap/cma.py with /cps-tool-competition-main/deap/cma.py 
