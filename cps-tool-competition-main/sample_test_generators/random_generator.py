@@ -33,8 +33,6 @@ class RandomTestGenerator():
         for i in range(len(all_road_points)):
             road_point_one = road_points
             road_point_two = all_road_points[i]
-            print(road_point_one)
-            print(road_point_two)
             dx = road_point_one[0][0] - road_point_two[0][0]
             dy = road_point_one[0][1] - road_point_two[0][1]
 
@@ -72,9 +70,8 @@ class RandomTestGenerator():
             # 0.2111: [(50, 50), (73, 76), (150, 150)], # should be removed
         }
 
-        candidate_solution = []
+        best_solution = []
 
-        testing_count = 0
 
         test_count = 0
 
@@ -93,7 +90,7 @@ class RandomTestGenerator():
         every_test_outcome = []
         every_description = []
         every_fitness = []
-        every_candidate = []
+        every_best = []
         every_time = []
 
         while test_count < 60:
@@ -106,26 +103,27 @@ class RandomTestGenerator():
                 # Simulate the time to generate a new test
                 sleep(0.5)
                 # Pick up random points from the map. They will be interpolated anyway to generate the road
-                road_points = []
+                road_points = [(66.0, 151.0), (112.0, 144.0), (37.0, 27.0)]
                 # for i in range(0, 3):
                 #     road_points.append((randint(10, self.map_size - 10), randint(10, self.map_size - 10)))
 
             
 
                 if self.is_redundant(every_road, road_points):
+                    log.info("Test_outcome: REDUNDANT")
                     test_count += 1
                     current_time = time.time() - start_time
                     redundant_count += 1
                     every_road.append(road_points)
-                    every_test_outcome.append("Redundant test")
+                    every_test_outcome.append("REDUNDANT")
                     every_description.append("Redundant test")
                     every_fitness.append("Redundant test")
                     every_time.append(current_time)
-                    if candidate_solution != []:
-                        previous_candidate = every_candidate[-1]
-                        every_candidate.append(previous_candidate)
+                    if best_solution != []:
+                        previous_best = every_best[-1]
+                        every_best.append(previous_best)
                     else:
-                        every_candidate.append(("None", "None"))
+                        every_best.append(("None", "None"))
                     continue
 
 
@@ -133,7 +131,6 @@ class RandomTestGenerator():
 
                 # Try to execute the test
                 test_outcome, description, execution_data = self.executor.execute_test(the_test)
-                print(test_outcome)
             
                 oob_percentages = [state.oob_percentage for state in execution_data]
                 if len(oob_percentages) == 0:
@@ -141,22 +138,28 @@ class RandomTestGenerator():
                 else:
                     fitness = max(oob_percentages)  
 
-                if fitness > 0:
-                    test_outcome = "PASS"
+
+                if fitness != 0:
+                    if fitness > 0.15:
+                        test_outcome = "PASS"
+                        description = "Car left the lane"
+                    else:
+                        test_outcome = "FAIL"
+                        description = "Car did not leave the lane"
                 
                 current_time = time.time() - start_time
 
-                if test_outcome == "PASS":
+                if test_outcome == "PASS" or test_outcome == "FAIL":
 
                     all_roads[fitness] = list(road_points)
                     time_elapsed = time.time() - start_time
                     time_elapsed_list.append(time_elapsed)
 
-                    if candidate_solution == []:
-                        candidate_solution.append((fitness, road_points))
+                    if best_solution == []:
+                        best_solution.append((fitness, road_points))
                     else:
-                        if fitness > candidate_solution[0][0]:
-                            candidate_solution[0] = (fitness,road_points)
+                        if fitness > best_solution[0][0]:
+                            best_solution[0] = (fitness,road_points)
 
                 else:
                     invalid_tests += 1
@@ -164,9 +167,9 @@ class RandomTestGenerator():
 
                 test_count += 1
 
-                if candidate_solution != []:
-                    candidate_fitness = round(candidate_solution[0][0], 5)
-                    candidate_road = candidate_solution[0][1]
+                if best_solution != []:
+                    best_fitness = round(best_solution[0][0], 5)
+                    best_road = best_solution[0][1]
 
                 # Print the result from the test and continue
                 log.info(f"Road_points: {road_points}")
@@ -178,12 +181,12 @@ class RandomTestGenerator():
                 log.info(f"Fitness: {fitness:.5f}")  
                 every_fitness.append(fitness)
                 every_time.append(current_time)
-                if candidate_solution != []:
-                    log.info(f"Current candidate solution: {candidate_road}, fitness: {candidate_fitness}") 
-                    every_candidate.append((candidate_fitness,candidate_road))
+                if best_solution != []:
+                    log.info(f"Current best solution: {best_road}, fitness: {best_fitness}") 
+                    every_best.append((best_fitness,best_road))
                 else:
-                    log.info(f"Current candidate solution: {candidate_solution}") 
-                    every_candidate.append(("None", "None"))
+                    log.info(f"Current best solution: {best_solution}") 
+                    every_best.append(("None", "None"))
                 log.info("-------------------------------------------------")   
 
             except KeyboardInterrupt:
@@ -199,7 +202,7 @@ class RandomTestGenerator():
             'road points' : every_road,
             'test outcome' : every_test_outcome,
             'description' : every_description,
-            'current candidate' : every_candidate,
+            'current best' : every_best,
             'time elapsed' : every_time
         }
 
@@ -254,9 +257,9 @@ class RandomTestGenerator():
 
         df_lane_violation.to_csv(filename, index=False, mode = 'a')
         
-        if self.candidate_solution != []:
-            candidate_fitness = round(candidate_solution[0][0], 5)
-            candidate_road = candidate_solution[0][1]
+        if best_solution != []:
+            best_fitness = round(best_solution[0][0], 5)
+            best_road = best_solution[0][1]
 
         with open(filename, 'a') as f:
             f.write('\n')
@@ -266,5 +269,5 @@ class RandomTestGenerator():
             f.write('\n')
             f.write(f'Number of redundant roads: {redundant_count}')
             f.write('\n')
-            if self.candidate_solution != []:
-                f.write(f"Candidate solution: {candidate_road}, fitness: {candidate_fitness}")
+            if best_solution != []:
+                f.write(f"Best solution: {best_road}, fitness: {best_fitness}")
